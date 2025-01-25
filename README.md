@@ -11,5 +11,6 @@ The Reactor Protection System (RPS) plays a vital role in ensuring the safe oper
 
 ## Improved features:
 1. Dynamic graphical visualization through bar charts
-2. Data logging to csv file
-3. Display of the historical sensor data
+2. Switchable input control: automatic/manual
+3. Data logging to csv file
+4. Display of the historical sensor data
