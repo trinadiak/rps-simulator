@@ -62,7 +62,7 @@ def update_reading(canvas,
 # Initialize tkinter
 root = Tk()
 root.title("RPS simulation")
-root.geometry("1500x700")
+root.geometry("1800x850")
 
 space = 50
 y1, y2 = 35, 175
@@ -103,10 +103,10 @@ def alarm_button_widget(button, activated):
         button_text = f"Helium Temperature (°C)"
     elif button == "pressure":
         column = 2
-        button_text = f"Primary Coolant Pressure (MPa)"
+        button_text = f"Coolant Pressure (MPa)"
     elif button == "flux":
         column = 0
-        button_text = "Neutron Flux (cm^-2 s^-1)"
+        button_text = "Neutron Flux\n (cm^-2 s^-1)"
 
     if activated == "TRUE":
         background = "red"
@@ -123,17 +123,17 @@ def alarm_button_widget(button, activated):
                 bg=background,
                 # cursor="hand2",
                 # disabledforeground="gray",
-                fg="black",
-                font=("Arial", 10),
+                fg="black" if activated== "FALSE" else "white",
+                font=("Arial", 11),
                 height=3,
                 highlightbackground="black",
                 highlightcolor="green",
                 highlightthickness=2,
                 justify="center",
                 overrelief="raised",
-                padx=10,
+                padx=1,
                 pady=5,
-                width=25,
+                width=24,
                 wraplength=100)
     
     button1.grid(row=0, column=column, padx=1, pady=1)
@@ -376,7 +376,7 @@ headings = ["Time", "Flux1", "Flux2", "Flux3",
            "Temp1", "Temp2", "Temp3",
            "Pressure1", "Pressure2", "Pressure3"]
 for x, heading in enumerate(headings):
-    heading_table = Label(table_frame, text=heading)
+    heading_table = Label(table_frame, text=heading, font=("Arial", 11, "bold"))
     heading_table.grid(row=0, column=x, padx=10, pady=10)
 
 def populate_table(file_name):
@@ -410,20 +410,11 @@ def populate_table(file_name):
     except FileNotFoundError:
         error_label = Label(root, text="CSV file not found!", fg="red")
         error_label.grid(row=11, column=3, columnspan=10)
-# button_switch = tk.Button(
-#     root,
-#     text="Mode: Auto",  # Start in manual mode
-#     command=input_mode,
-#     bg="lightgray",  # Initial background color
-#     fg="black",        # Initial foreground color for manual mode
-#     font=("Arial", 10),
-#     width=20,
-#     height=2
-# )   
-# button_switch.grid(row=2, column=1, padx=1, pady=1)
+
 def status_widget(status_list):
     # Define status_text based on the status_list
-    if "TRUE" in status_list:
+
+    if "TRUE" in status_list or global_reactor_status == "TRIP":
         status_text = "TRIP"
         bg_color = "red"  # Red for TRIP
     else:
@@ -457,9 +448,81 @@ def status_widget(status_list):
         )
         status_widget.status_label.pack(padx=10, pady=5)  # Pack the label inside the frame
 
+# ---- LOGIC PROCESSING WIDGET -----
+# logic_frame = tk.Frame(root, relief="solid", borderwidth=1)
+logic_frame = tk.Frame(root)
+logic_frame.grid(row=8, column=0, columnspan=3, padx=1, pady=1)
 
+# # Add a top border to separate from manual control buttons
+# border_frame = tk.Frame(logic_frame, bg="black", height=2)  # Thin black border
+# border_frame.grid(row=0, column=0, columnspan=2, sticky="we")  # Spanning across the widget width
 
-# status_widget()
+# Add a title for the widget
+logic_title = Label(
+    logic_frame, 
+    text="Logic Processing", 
+    font=("Arial", 16, "bold"),  # Larger, bold font for the title
+    anchor="center",
+    width=55,
+)
+logic_title.grid(row=0, column=0, pady=1, columnspan=3)
+
+# Channel headings
+channel_headings = ["Channel 1 Initiation Signal: ",
+                    "Channel 2 Initiation Signal: ",
+                    "Channel 3 Initiation Signal: "]
+
+for x, channel in enumerate(channel_headings):
+    heading_table = Label(
+        logic_frame, 
+        text=channel, 
+        font=("Arial", 12),  # Set font size for channel headings
+    )
+    heading_table.grid(row=x + 1, column=0, padx=1, pady=1)
+
+# Create labels for channel logic
+channel_logic_labels = [Label(logic_frame, text="N/A", font=("Arial", 12)) for _ in range(3)]
+for i, label in enumerate(channel_logic_labels):
+    label.grid(row=i + 1, column=1, columnspan=3, padx=1, pady=1)
+
+# Create a label for reactor status with "REACTOR STATUS: " in bold
+reactor_status_label = Label(
+    logic_frame, 
+    text="REACTOR STATUS: N/A", 
+    font=("Arial", 14, "bold"),  # Bold and larger font
+    # background="white"
+)
+reactor_status_label.grid(row=4, column=0, columnspan=3, pady=5)
+
+def logic_process_channel(list_flux, list_temp, list_pressure):
+    global global_reactor_status
+    list_values = [list_flux, list_temp, list_pressure]
+    list_ch = [[list_values[j][i] for j in range(len(list_values))] for i in range(len(list_values[0]))]
+    # values_ch1, values_ch2, values_ch3 = list_ch[0], list_ch[1], list_ch[2]
+    list_setpoint = [setpoint_flux, setpoint_temp, setpoint_pres]
+    # list_ch = [values_ch1, values_ch2, values_ch3]
+
+    # Logic processing
+    list_logic_ch = []
+    for ch in range(3):
+        list_logic = []
+        for sensor in range(3):
+            list_logic.append("TRUE" if list_ch[ch][sensor] >= list_setpoint[sensor] else "FALSE")
+        list_logic_ch.append(list_logic)
+    
+    # Update channel logic labels
+    list_voting = []
+    for i, list_ch in enumerate(list_logic_ch):
+        logic_result = "TRUE" if "TRUE" in list_ch else "FALSE"
+        channel_logic_labels[i].config(text=logic_result)  # Update the existing label
+        list_voting.append(logic_result)
+
+    # Update reactor status label with bold prefix
+    reactor_status = "TRIP" if list_voting.count("TRUE") >= 2 else "NORMAL"
+    reactor_status_label.config(text=f"REACTOR STATUS: {reactor_status}", foreground="red" if reactor_status=="TRIP" else "green")
+    global_reactor_status = reactor_status
+    
+
 
 # ---- INPUT CONTROL ----
 # Initial values for manual sensor readings
@@ -473,6 +536,8 @@ history_pressure = []
 history_time = []
 history_filename = "sensor_data.csv"
 
+list_ch1, list_ch2, list_ch3 = [], [], []
+
 def control_auto():
     global list_reading_flux, list_reading_pressure, list_reading_temp
     global canvas_pressure, canvas_temp, canvas_flux
@@ -482,23 +547,21 @@ def control_auto():
         list_reading_pressure = list(np.random.uniform(range_pressure[0], range_pressure[1], size=3))
         list_reading_temp = list(np.random.uniform(range_temp[0], range_temp[1], size=3))
 
+        # To be displayed on the Status Widget
         list_status = [logic_processing(setpoint_flux, list_reading_flux),
                        logic_processing(setpoint_temp, list_reading_temp),
                        logic_processing(setpoint_pres, list_reading_pressure)]
-        status_widget(list_status)
-        history_flux.append(list_reading_flux)
-        # history_flux = list_reading_flux
-        history_temp.append(list_reading_temp)
-        # history_temp = list_reading_temp
-        history_pressure.append(list_reading_pressure)
-        # history_pressure =list_reading_pressure
-        history_time.append(time.strftime('%H:%M:%S'))
 
+        logic_process_channel(list_reading_flux, list_reading_temp, list_reading_pressure)
+        
+        # Data log
+        history_flux.append(list_reading_flux)
+        history_temp.append(list_reading_temp)
+        history_pressure.append(list_reading_pressure)
+        history_time.append(time.strftime('%H:%M:%S'))
         update_plot_data(list_reading_flux, list_reading_temp, list_reading_pressure)
-        # save_to_csv("sensor_data.csv", )
-        # time_stamps.append(len(time_stamps))
-        # update_graph()
-        if len(time_stamps) % 1 == 0:  # Save every 10 data points
+
+        if len(time_stamps) % 1 == 0:  # Save every 1 data point
             save_to_csv(history_filename, history_time, history_flux, history_temp, history_pressure)
 
         bar_widget("flux", canvas_flux, min_flux, max_flux,
@@ -532,12 +595,6 @@ def control_auto():
     # else:
 
 def update_manual_values(sensor, channel, plus):
-    """
-    Updates the manual values for the specified sensor and channel.
-    sensor: 'flux', 'temp', 'pressure'
-    channel: 0, 1, 2 (for CH1, CH2, CH3)
-    plusmin: True to increase, False to decrease
-    """
     global manual_values_flux, manual_values_temp, manual_values_pressure
     value_range = {
         "flux": range_flux,
@@ -572,19 +629,20 @@ def update_manual_values(sensor, channel, plus):
                    setpoint_pres, column=2, row=1, 
                    list_reading=manual_values_pressure)
         alarm_button_widget("pressure", logic_processing(setpoint_pres, manual_values_pressure))
-    list_status = [logic_processing(setpoint_flux, list_reading_flux),
-                       logic_processing(setpoint_temp, list_reading_temp),
-                       logic_processing(setpoint_pres, list_reading_pressure)]
-    status_widget(list_status)
+    list_status = [logic_processing(setpoint_flux, manual_values_flux),
+                       logic_processing(setpoint_temp, manual_values_temp),
+                       logic_processing(setpoint_pres, manual_values_pressure)]
+    # status_widget(list_status)
+    logic_process_channel(manual_values_flux, manual_values_temp, manual_values_pressure)
     
     update_plot_data(manual_values_flux[:],
                      manual_values_temp[:],
                      manual_values_pressure[:])
-    history_flux.append(list_reading_flux)
+    history_flux.append(manual_values_flux)
     # history_flux = list_reading_flux
-    history_temp.append(list_reading_temp)
+    history_temp.append(manual_values_temp)
     # history_temp = list_reading_temp
-    history_pressure.append(list_reading_pressure)
+    history_pressure.append(manual_values_pressure)
     # history_pressure =list_reading_pressure
     history_time.append(time.strftime('%H:%M:%S'))
 
@@ -612,25 +670,16 @@ def control_manual():
             Button(frame, text="+", command=lambda s=sensor, ch=channel: update_manual_values(s, ch, True)).grid(row=0, column=2)
 
 def input_mode():
-    # Alt:
-    # global is_auto
-    # is_auto = not is_auto
-    # button_switch.config(
-    #     text="Mode: Automatic" if is_auto else "Mode: Manual",
-    #     bg="green" if is_auto else "lightgray",
-    # )
-    # control_mode()
-    
     global is_auto, button_switch
     if is_auto: # MANUAL
         # insert action
-        button_switch.config(text="Mode: Manual", fg="black", bg="yellow")
+        button_switch.config(text="Mode: Manual")
         is_auto = False
         control_manual()
         print("Mode: Manual")
     else: #AUTO
         # action
-        button_switch.config(text="Mode: Automatic", fg="white", bg="purple")
+        button_switch.config(text="Mode: Automatic")
         is_auto = True
         control_auto()
         print("Mode: Auto")
@@ -710,27 +759,51 @@ button_switch = tk.Button(
     command=input_mode,
     bg="lightgray",  # Initial background color
     fg="black",        # Initial foreground color for manual mode
-    font=("Arial", 10),
-    width=20,
-    height=3
+    font=("Arial", 13),
+    width=75,
+    height=2
 )   
-button_switch.grid(row=2, column=1, padx=1, pady=1)
-# canvas_switch.bind("<Button-1>", lambda event: input_mode())
+button_switch.grid(row=2, column=0, padx=1, pady=1, columnspan=3)
 
-# ---- GRAPH WIDGET ----
-# Add buttons for Reset and Start
-# reset_button = tk.Button(root, text="Reset", command=reset_data)
-# reset_button.grid(row=2, column=2, pady=10, padx=10)
+# ---- FOOTER SECTION ----
+# ---- FOOTER SECTION ----
+footer_frame = tk.Frame(root, bg="white")
+footer_frame.grid(row=0, column=13, rowspan=2, pady=1)
 
-# start_button = tk.Button(root, text="Start", command=start_updating)
-# start_button.grid(row=2, column=3, pady=10, padx=10)
+def load_resized_image(path, width, height):
+    img = Image.open(path)
+    img = img.resize((width, height), Image.Resampling.LANCZOS)  # Resize image
+    return ImageTk.PhotoImage(img)
+
+# Replace with actual file paths
+logo1 = load_resized_image("Alt_Logo_BRIN.png", 100, 50)
+logo2 = load_resized_image("Lambang UGM-hitam.png", 50, 50)
+
+# Display logos using pack(side="left")
+logo1_label = tk.Label(footer_frame, image=logo1, bg="white")
+logo1_label.pack(side="top", padx=10)
+
+logo2_label = tk.Label(footer_frame, image=logo2, bg="white")
+logo2_label.pack(side="top", padx=10)
+
+# Copyright text stretched across
+copyright_label = tk.Label(
+    footer_frame,
+    text="2025. Developed by Trinadia \n Kurniasari as an internship project.",
+    font=("Arial", 10),
+    bg="white"
+)
+copyright_label.pack(side="right", fill="x", expand=True, padx=10)
+
+# Keep images in memory (prevent garbage collection)
+logo1_label.image = logo1
+logo2_label.image = logo2
 
 # Bind the window close event
 root.protocol("WM_DELETE_WINDOW", on_closing)
 
 # Start the dynamic updating
 # update_plot_data()
-
 
 # Run the tkinter event loop
 root.mainloop()
